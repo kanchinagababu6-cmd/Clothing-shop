@@ -19,6 +19,10 @@ export default function Header() {
     return () => unsubscribe();
   }, []);
 
+  const goTo = (path: string) => {
+    window.location.assign(path);
+  };
+
   const cartCount = cart ? cart.reduce((total, item) => total + (item.quantity || 1), 0) : 0;
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -36,41 +40,49 @@ export default function Header() {
         zIndex: 100,
       }}
     >
-      {/* Brand Icon / Title - Direct browser navigation to home */}
-      <a
-        href="/"
+      {/* KNB CLOTHING Logo Button */}
+      <button
+        type="button"
+        onClick={() => goTo("/")}
         style={{
-          textDecoration: "none",
+          background: "none",
+          border: "none",
           color: "#000",
           fontSize: "19px",
           fontWeight: "900",
           letterSpacing: "0.5px",
           cursor: "pointer",
+          padding: 0,
         }}
       >
         KNB CLOTHING
-      </a>
+      </button>
 
       <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-        {/* Shop / Home Link */}
-        <a
-          href="/"
+        {/* Shop / Home Button */}
+        <button
+          type="button"
+          onClick={() => goTo("/")}
           style={{
-            textDecoration: "none",
+            background: "none",
+            border: "none",
             color: "#333",
             fontSize: "14px",
             fontWeight: 600,
             cursor: "pointer",
+            padding: 0,
           }}
         >
           Shop
-        </a>
+        </button>
 
-        {/* Bag */}
-        <a
-          href="/checkout"
+        {/* Bag Button */}
+        <button
+          type="button"
+          onClick={() => goTo("/checkout")}
           style={{
-            textDecoration: "none",
+            background: "none",
+            border: "none",
             color: "#000",
             fontSize: "14px",
             fontWeight: 600,
@@ -78,48 +90,48 @@ export default function Header() {
             alignItems: "center",
             gap: "4px",
             cursor: "pointer",
+            padding: 0,
           }}
         >
           🛍️ Bag ({cartCount})
-        </a>
+        </button>
 
-        {/* Profile */}
-        <a
-          href={user ? "/profile" : "/login"}
+        {/* Profile Button */}
+        <button
+          type="button"
+          onClick={() => goTo(user ? "/profile" : "/login")}
           style={{
-            textDecoration: "none",
             fontSize: "13px",
             padding: "6px 12px",
             backgroundColor: "#f5f5f5",
             borderRadius: "6px",
             color: "#000",
             fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
+            border: "none",
             cursor: "pointer",
           }}
         >
           👤 {user ? "Profile" : "Login"}
-        </a>
+        </button>
 
         {/* Admin Link */}
         {isAdmin && (
-          <a
-            href="/admin"
+          <button
+            type="button"
+            onClick={() => goTo("/admin")}
             style={{
-              textDecoration: "none",
               fontSize: "12px",
               padding: "6px 10px",
               backgroundColor: "#000",
               color: "#fff",
               borderRadius: "4px",
               fontWeight: 600,
+              border: "none",
               cursor: "pointer",
             }}
           >
             Admin
-          </a>
+          </button>
         )}
       </div>
     </header>
