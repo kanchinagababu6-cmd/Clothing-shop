@@ -20,11 +20,9 @@ export default function ProductPage() {
   const [color, setColor] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Delivery check state
   const [pincode, setPincode] = useState("");
   const [pincodeStatus, setPincodeStatus] = useState("");
 
-  // Reviews state
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewerName, setReviewerName] = useState("");
   const [rating, setRating] = useState(5);
@@ -49,7 +47,7 @@ export default function ProductPage() {
         const revList = revSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setReviews(revList);
       } catch (e) {
-        console.error("Error fetching product:", e);
+        console.error("Error loading product:", e);
       } finally {
         setLoading(false);
       }
@@ -59,7 +57,9 @@ export default function ProductPage() {
   }, [params?.id]);
 
   const handleWhatsAppBuy = () => {
+    if (!product) return;
     const text = `Hi! I would like to order:
+*Brand:* KNB Clothing
 *Product:* ${product.name}
 *Price:* ₹${product.price}
 *Size:* ${size || "Standard"}
@@ -74,7 +74,7 @@ export default function ProductPage() {
     if (navigator.share) {
       navigator.share({
         title: product?.name,
-        text: `Check out ${product?.name} at ₹${product?.price}!`,
+        text: `Check out ${product?.name} at ₹${product?.price} on KNB Clothing!`,
         url: window.location.href,
       });
     } else {
@@ -128,12 +128,11 @@ export default function ProductPage() {
     return <div style={{ textAlign: "center", padding: "80px 20px" }}>Product not found.</div>;
   }
 
-  const isFav = isWishlisted(product.id);
+  const isFav = isWishlisted ? isWishlisted(product.id) : false;
 
   return (
     <div style={{ maxWidth: "960px", margin: "40px auto", padding: "0 20px", fontFamily: "sans-serif" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "40px", marginBottom: "60px" }}>
-        {/* Left Column: Image */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "40px", marginBottom: "50px" }}>
         <div style={{ position: "relative" }}>
           <img
             src={product.image || product.imageUrl || "https://placehold.co/500x600?text=No+Image"}
@@ -141,17 +140,17 @@ export default function ProductPage() {
             style={{ width: "100%", borderRadius: "10px", objectFit: "cover", aspectRatio: "3/4" }}
           />
           <button
-            onClick={() => toggleWishlist(product)}
+            onClick={() => toggleWishlist && toggleWishlist(product)}
             style={{
               position: "absolute",
-              top: "16px",
-              right: "16px",
+              top: "14px",
+              right: "14px",
               background: "rgba(255,255,255,0.9)",
               border: "none",
               borderRadius: "50%",
-              width: "40px",
-              height: "40px",
-              fontSize: "20px",
+              width: "38px",
+              height: "38px",
+              fontSize: "18px",
               cursor: "pointer",
             }}
           >
@@ -159,7 +158,6 @@ export default function ProductPage() {
           </button>
         </div>
 
-        {/* Right Column: Details */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <h1 style={{ fontSize: "28px", fontWeight: "bold", margin: "0 0 8px 0" }}>{product.name}</h1>
@@ -167,7 +165,7 @@ export default function ProductPage() {
               <span style={{ fontSize: "24px", fontWeight: 700 }}>₹{product.price}</span>
               {avgRating && (
                 <span style={{ fontSize: "14px", backgroundColor: "#fef08a", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
-                  ★ {avgRating} ({reviews.length} reviews)
+                  ★ {avgRating} ({reviews.length})
                 </span>
               )}
             </div>
@@ -177,7 +175,6 @@ export default function ProductPage() {
             <p style={{ color: "#555", lineHeight: 1.6, margin: 0 }}>{product.description}</p>
           )}
 
-          {/* Sizes */}
           {product.sizes && product.sizes.length > 0 && (
             <div>
               <label style={{ fontWeight: 600, display: "block", marginBottom: "6px", fontSize: "14px" }}>Select Size:</label>
@@ -204,7 +201,6 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Colors */}
           {product.colors && product.colors.length > 0 && (
             <div>
               <label style={{ fontWeight: 600, display: "block", marginBottom: "6px", fontSize: "14px" }}>Select Color:</label>
@@ -230,16 +226,13 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Pincode checker */}
           <div style={{ padding: "14px", backgroundColor: "#f9fafb", borderRadius: "8px" }}>
-            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
-              Check Delivery Availability:
-            </label>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>Check Delivery:</label>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
                 type="text"
                 maxLength={6}
-                placeholder="Enter 6-digit Pincode"
+                placeholder="6-digit Pincode"
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value)}
                 style={{ flex: 1, padding: "8px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px" }}
@@ -259,7 +252,6 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
             <button
               type="button"
@@ -301,7 +293,7 @@ export default function ProductPage() {
                   cursor: "pointer",
                 }}
               >
-                Add to Bag & Checkout
+                Add to Bag
               </button>
 
               <button
@@ -325,204 +317,64 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Customer Reviews Section */}
-      <div style={{ borderTop: "1px solid #eee", paddingTop: "40px" }}>
-        <h2 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "20px" }}>Customer Feedback</h2>
+      <div style={{ borderTop: "1px solid #eee", paddingTop: "30px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: "bold", marginBottom: "16px" }}>Customer Reviews</h2>
 
-        <form onSubmit={handleReviewSubmit} style={{ backgroundColor: "#f9f9f9", padding: "20px", borderRadius: "10px", marginBottom: "30px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, margin: "0 0 12px" }}>Write a Review</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: "12px", marginBottom: "12px" }}>
+        <form onSubmit={handleReviewSubmit} style={{ backgroundColor: "#f9f9f9", padding: "16px", borderRadius: "8px", marginBottom: "24px" }}>
+          <h3 style={{ fontSize: "15px", fontWeight: 600, margin: "0 0 10px" }}>Leave a Review</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "10px", marginBottom: "10px" }}>
             <input
               type="text"
               required
               placeholder="Your name"
               value={reviewerName}
               onChange={(e) => setReviewerName(e.target.value)}
-              style={{ padding: "10px", borderRadius: "6px", border: "1px solid #ccc" }}
+              style={{ padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }}
             />
             <select
               value={rating}
               onChange={(e) => setRating(Number(e.target.value))}
-              style={{ padding: "10px", borderRadius: "6px", border: "1px solid #ccc", backgroundColor: "#fff" }}
+              style={{ padding: "8px", borderRadius: "6px", border: "1px solid #ccc", backgroundColor: "#fff" }}
             >
-              <option value="5">★★★★★ (5/5)</option>
-              <option value="4">★★★★☆ (4/5)</option>
-              <option value="3">★★★☆☆ (3/5)</option>
-              <option value="2">★★☆☆☆ (2/5)</option>
-              <option value="1">★☆☆☆☆ (1/5)</option>
+              <option value="5">★★★★★ (5)</option>
+              <option value="4">★★★★☆ (4)</option>
+              <option value="3">★★★☆☆ (3)</option>
+              <option value="2">★★☆☆☆ (2)</option>
+              <option value="1">★☆☆☆☆ (1)</option>
             </select>
           </div>
           <textarea
             required
             rows={3}
-            placeholder="How does this item fit? What do you think about the fabric?"
+            placeholder="Share your thoughts on fit, fabric, quality..."
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", marginBottom: "12px", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginBottom: "10px", boxSizing: "border-box" }}
           />
           <button
             type="submit"
             disabled={submittingReview}
-            style={{ backgroundColor: "#000", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "6px", fontWeight: 600, cursor: "pointer" }}
+            style={{ backgroundColor: "#000", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", fontWeight: 600, cursor: "pointer" }}
           >
             {submittingReview ? "Submitting..." : "Submit Review"}
           </button>
         </form>
 
         {reviews.length === 0 ? (
-          <p style={{ color: "#777" }}>No reviews yet. Be the first to leave a review!</p>
+          <p style={{ color: "#777", fontSize: "14px" }}>No reviews yet. Be the first to leave one!</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {reviews.map((rev) => (
-              <div key={rev.id} style={{ borderBottom: "1px solid #eee", paddingBottom: "12px" }}>
+              <div key={rev.id} style={{ borderBottom: "1px solid #eee", paddingBottom: "10px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                   <strong style={{ fontSize: "14px" }}>{rev.name}</strong>
-                  <span style={{ color: "#eab308", fontSize: "14px" }}>{"★".repeat(rev.rating)}{"☆".repeat(5 - rev.rating)}</span>
+                  <span style={{ color: "#eab308", fontSize: "13px" }}>{"★".repeat(rev.rating)}{"☆".repeat(5 - rev.rating)}</span>
                 </div>
-                <p style={{ margin: 0, fontSize: "14px", color: "#444" }}>{rev.comment}</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "#444" }}>{rev.comment}</p>
               </div>
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-        setLoading(false);
-      }
-    };
-    fetchProduct();
-  }, [params?.id]);
-
-  if (loading) {
-    return <div style={{ textAlign: "center", padding: "60px 20px" }}>Loading product...</div>;
-  }
-
-  if (!product) {
-    return <div style={{ textAlign: "center", padding: "60px 20px" }}>Product not found.</div>;
-  }
-
-  const handleWhatsAppBuy = () => {
-    const text = `Hi! I would like to order:
-*Product:* ${product.name}
-*Price:* ₹${product.price}
-*Size:* ${size || "N/A"}
-*Color:* ${color || "N/A"}
-*Link:* ${window.location.href}`;
-
-    const url = `https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
-  };
-
-  return (
-    <div style={{ maxWidth: "900px", margin: "40px auto", padding: "0 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", fontFamily: "sans-serif" }}>
-      <div>
-        <img
-          src={product.image || product.imageUrl || "https://placehold.co/500x600?text=No+Image"}
-          alt={product.name}
-          style={{ width: "100%", borderRadius: "8px", objectFit: "cover", aspectRatio: "3/4" }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: "bold", margin: 0 }}>{product.name}</h1>
-        <p style={{ fontSize: "22px", fontWeight: 600, color: "#111", margin: 0 }}>₹{product.price}</p>
-        
-        {product.description && (
-          <p style={{ color: "#555", lineHeight: 1.6 }}>{product.description}</p>
-        )}
-
-        {product.sizes && product.sizes.length > 0 && (
-          <div>
-            <label style={{ fontWeight: 600, display: "block", marginBottom: "6px" }}>Select Size:</label>
-            <div style={{ display: "flex", gap: "8px" }}>
-              {product.sizes.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSize(s)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "4px",
-                    border: size === s ? "2px solid #000" : "1px solid #ccc",
-                    backgroundColor: size === s ? "#000" : "#fff",
-                    color: size === s ? "#fff" : "#000",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {product.colors && product.colors.length > 0 && (
-          <div>
-            <label style={{ fontWeight: 600, display: "block", marginBottom: "6px" }}>Select Color:</label>
-            <div style={{ display: "flex", gap: "8px" }}>
-              {product.colors.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "4px",
-                    border: color === c ? "2px solid #000" : "1px solid #ccc",
-                    backgroundColor: color === c ? "#f0f0f0" : "#fff",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px" }}>
-          {/* WhatsApp Direct Order Button */}
-          <button
-            onClick={handleWhatsAppBuy}
-            style={{
-              backgroundColor: "#25D366",
-              color: "#fff",
-              border: "none",
-              padding: "14px 20px",
-              borderRadius: "6px",
-              fontSize: "16px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            💬 Buy via WhatsApp
-          </button>
-
-          {/* Add to Cart Button */}
-          <button
-            onClick={() => {
-              addToCart({ ...product, size, color, quantity: 1 });
-              router.push("/cart");
-            }}
-            style={{
-              backgroundColor: "#000",
-              color: "#fff",
-              border: "none",
-              padding: "14px 20px",
-              borderRadius: "6px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
-          >
-            Add to Cart
-          </button>
-        </div>
       </div>
     </div>
   );
