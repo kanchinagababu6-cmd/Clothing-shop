@@ -21,19 +21,35 @@ export default function RootLayout({
           <Header />
           <main style={{ minHeight: "80vh" }}>{children}</main>
           <Footer />
-
-          {/* Floating WhatsApp Customer Support Bubble */}
           <a
-            href="https://wa.me/917075596910?text=Hi!%20I%20have%20a%20question%20about%20my%20order%20from%20KNB%20Clothing."
+            href="https://wa.me/917075596910?text=Hi!%20I%20have%20a%20question%20about%20KNB%20Clothing."
             target="_blank"
             rel="noopener noreferrer"
             style={{
               position: "fixed",
-              bottom: "24px",
-              right: "24px",
+              bottom: "20px",
+              right: "20px",
               backgroundColor: "#25D366",
               color: "#fff",
               borderRadius: "50%",
+              width: "50px",
+              height: "50px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "24px",
+              textDecoration: "none",
+              zIndex: 999,
+              boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+            }}
+          >
+            💬
+          </a>
+        </StoreProvider>
+      </body>
+    </html>
+  );
+}
               width: "56px",
               height: "56px",
               display: "flex",
