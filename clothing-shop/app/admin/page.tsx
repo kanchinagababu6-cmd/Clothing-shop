@@ -4,14 +4,27 @@ import { useState, useEffect } from "react";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
-import type { Product } from "@/lib/types";
+
+interface AdminProduct {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  imageUrl?: string;
+  gender?: string;
+  category?: string;
+  sizes?: string[];
+  colors?: string[];
+  stock: number;
+}
 
 const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<AdminProduct[]>([]);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -33,7 +46,7 @@ export default function AdminPage() {
 
   const loadProducts = async () => {
     const snap = await getDocs(collection(db, "products"));
-    setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product)));
+    setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AdminProduct)));
   };
 
   useEffect(() => {
@@ -138,7 +151,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Category Pickers */}
         <div style={{ display: "flex", gap: "12px" }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: "14px", fontWeight: 600 }}>Gender</label>
@@ -217,7 +229,7 @@ export default function AdminPage() {
               <div>
                 <strong>{p.name}</strong> — ₹{p.price}
                 <div style={{ fontSize: "12px", color: "#666" }}>
-                  {(p as any).gender || "All"} | {(p as any).category || "General"} | {p.stock} in stock
+                  {p.gender || "All"} | {p.category || "General"} | {p.stock} in stock
                 </div>
               </div>
               <button
@@ -232,5 +244,4 @@ export default function AdminPage() {
       )}
     </main>
   );
-                                        }
-
+      }
