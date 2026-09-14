@@ -2,31 +2,12 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import type { CartItem, Product } from "@/lib/types";
 
-type Ctx = {
-  cart: CartItem[];
-  wishlist: Product[];
-  addToCart: (item: CartItem) => void;
-  removeFromCart: (id: string) => void;
-  clearCart: () => void;
-  toggleWishlist: (product: Product) => void;
-  isWishlisted: (id: string) => boolean;
-};
-
-const StoreContext = createContext<Ctx>({
-  cart: [],
-  wishlist: [],
-  addToCart: () => {},
-  removeFromCart: () => {},
-  clearCart: () => {},
-  toggleWishlist: () => {},
-  isWishlisted: () => false,
-});
+const StoreContext = createContext<any>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
+  const [wishlist, setWishlist] = useState<any[]>([]);
 
   useEffect(() => {
     try {
@@ -39,21 +20,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const saveCart = (items: CartItem[]) => {
+  const saveCart = (items: any[]) => {
     setCart(items);
-    localStorage.setItem("cart", JSON.stringify(items));
+    try {
+      localStorage.setItem("cart", JSON.stringify(items));
+    } catch (e) {}
   };
 
-  const addToCart = (item: CartItem) => {
-    const existing = cart.find(
+  const addToCart = (item: any) => {
+    const existingIndex = cart.findIndex(
       (c) => c.id === item.id && c.size === item.size && c.color === item.color
     );
-    if (existing) {
-      const updated = cart.map((c) =>
-        c.id === item.id && c.size === item.size && c.color === item.color
-          ? { ...c, quantity: (c.quantity || 1) + (item.quantity || 1) }
-          : c
-      );
+    if (existingIndex > -1) {
+      const updated = [...cart];
+      updated[existingIndex].quantity = (updated[existingIndex].quantity || 1) + (item.quantity || 1);
       saveCart(updated);
     } else {
       saveCart([...cart, item]);
@@ -69,7 +49,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saveCart([]);
   };
 
-  const toggleWishlist = (prod: Product) => {
+  const toggleWishlist = (prod: any) => {
     let updated;
     if (wishlist.some((w) => w.id === prod.id)) {
       updated = wishlist.filter((w) => w.id !== prod.id);
@@ -77,11 +57,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updated = [...wishlist, prod];
     }
     setWishlist(updated);
-    localStorage.setItem("wishlist", JSON.stringify(updated));
+    try {
+      localStorage.setItem("wishlist", JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const isWishlisted = (id: string) => {
-    return wishlist.some((w) => w.id === id);
+    return (wishlist || []).some((w) => w.id === id);
   };
 
   return (
@@ -101,23 +83,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const useStore = () => useContext(StoreContext);
-
-  return (
-    <StoreContext.Provider value={{
-      cart,
-      addToCart,
-      removeFromCart: (index) => setCart(c => c.filter((_, i) => i !== index)),
-      clearCart: () => setCart([]),
-      cartTotal: cart.reduce((s, x) => s + x.price * x.quantity, 0)
-    }}>
-      {children}
-    </StoreContext.Provider>
-  );
-}
-
 export function useStore() {
-  const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useStore must be used inside StoreProvider");
-  return ctx;
+  const context = useContext(StoreContext);
+  if (!context) {
+    return {
+      cart: [],
+      wishlist: [],
+      addToCart: () => {},
+      removeFromCart: () => {},
+      clearCart: () => {},
+      toggleWishlist: () => {},
+      isWishlisted: () => false,
+    };
+  }
+  return context;
 }
