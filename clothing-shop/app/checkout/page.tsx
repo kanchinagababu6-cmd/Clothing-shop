@@ -3,18 +3,14 @@
 
 import { useState } from "react";
 import { useStore } from "@/components/StoreProvider";
+import { auth, db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
 import Link from "next/link";
 
 const WHATSAPP_PHONE_NUMBER = "917075596910";
 
-const COUPONS = {
-  WELCOME10: 10,
-  SAVE50: 50,
-  FLAT100: 100,
-};
-
 export default function CheckoutPage() {
-  const { cart, removeFromCart } = useStore();
+  const { cart, removeFromCart, clearCart } = useStore();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -48,10 +44,30 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleWhatsAppCheckout = () => {
+  const handleWhatsAppCheckout = async () => {
     if (!name || !phone || !address || !pincode) {
       alert("Please enter Name, Phone, Address, and Pincode.");
       return;
+    }
+
+    // Save order to Firestore if user is logged in
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await addDoc(collection(db, "orders"), {
+          userId: currentUser.uid,
+          customerName: name,
+          phone,
+          address: `${address}, ${city} - ${pincode}`,
+          items: cart,
+          total: finalTotal,
+          status: "Processing",
+          paymentMethod,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.log("Error logging order:", e);
     }
 
     let msg = `🛍️ *NEW ORDER - KNB CLOTHING*\n`;
@@ -83,7 +99,18 @@ export default function CheckoutPage() {
     return (
       <div style={{ textAlign: "center", padding: "80px 20px", fontFamily: "sans-serif" }}>
         <h2>Your bag is empty</h2>
-        <Link href="/" style={{ display: "inline-block", marginTop: "16px", padding: "10px 20px", background: "#000", color: "#fff", textDecoration: "none", borderRadius: "6px" }}>
+        <Link
+          href="/"
+          style={{
+            display: "inline-block",
+            marginTop: "16px",
+            padding: "10px 20px",
+            background: "#000",
+            color: "#fff",
+            textDecoration: "none",
+            borderRadius: "6px",
+          }}
+        >
           Start Shopping
         </Link>
       </div>
