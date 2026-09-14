@@ -2,7 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useStore } from "@/components/StoreProvider";
 
@@ -11,20 +13,30 @@ const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 export default function Header() {
   const { cart } = useStore();
   const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setLoadingAuth(false);
     });
     return () => unsubscribe();
   }, []);
 
-  const goTo = (path: string) => {
-    window.location.assign(path);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      router.push("/login");
+      router.refresh();
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   const cartCount = cart ? cart.reduce((total, item) => total + (item.quantity || 1), 0) : 0;
-  const isAdmin = user && user.email === ADMIN_EMAIL;
+  const isAdmin = user && user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   return (
     <header
@@ -40,98 +52,119 @@ export default function Header() {
         zIndex: 100,
       }}
     >
-      {/* KNB CLOTHING Logo Button */}
-      <button
-        type="button"
-        onClick={() => goTo("/")}
+      {/* Brand Home Link */}
+      <Link
+        href="/"
         style={{
-          background: "none",
-          border: "none",
+          textDecoration: "none",
           color: "#000",
           fontSize: "19px",
           fontWeight: "900",
           letterSpacing: "0.5px",
-          cursor: "pointer",
-          padding: 0,
         }}
       >
         KNB CLOTHING
-      </button>
+      </Link>
 
-      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-        {/* Shop / Home Button */}
-        <button
-          type="button"
-          onClick={() => goTo("/")}
+      <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+        {/* Shop / Home Navigation */}
+        <Link
+          href="/"
           style={{
-            background: "none",
-            border: "none",
+            textDecoration: "none",
             color: "#333",
             fontSize: "14px",
             fontWeight: 600,
-            cursor: "pointer",
-            padding: 0,
           }}
         >
           Shop
-        </button>
+        </Link>
 
-        {/* Bag Button */}
-        <button
-          type="button"
-          onClick={() => goTo("/checkout")}
+        {/* Bag */}
+        <Link
+          href="/checkout"
           style={{
-            background: "none",
-            border: "none",
+            textDecoration: "none",
             color: "#000",
             fontSize: "14px",
             fontWeight: 600,
             display: "flex",
             alignItems: "center",
             gap: "4px",
-            cursor: "pointer",
-            padding: 0,
           }}
         >
           🛍️ Bag ({cartCount})
-        </button>
+        </Link>
 
-        {/* Profile Button */}
-        <button
-          type="button"
-          onClick={() => goTo(user ? "/profile" : "/login")}
+        {/* Profile Link */}
+        <Link
+          href="/profile"
           style={{
+            textDecoration: "none",
             fontSize: "13px",
             padding: "6px 12px",
             backgroundColor: "#f5f5f5",
             borderRadius: "6px",
             color: "#000",
             fontWeight: 600,
-            border: "none",
-            cursor: "pointer",
           }}
         >
-          👤 {user ? "Profile" : "Login"}
-        </button>
+          👤 Profile
+        </Link>
 
-        {/* Admin Link */}
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => goTo("/admin")}
+        {/* Admin Link (Only for kanchinagababu6@gmail.com) */}
+        {!loadingAuth && isAdmin && (
+          <Link
+            href="/admin"
             style={{
+              textDecoration: "none",
               fontSize: "12px",
               padding: "6px 10px",
               backgroundColor: "#000",
               color: "#fff",
               borderRadius: "4px",
               fontWeight: 600,
-              border: "none",
-              cursor: "pointer",
             }}
           >
             Admin
-          </button>
+          </Link>
+        )}
+
+        {/* Direct Login / Logout Button */}
+        {!loadingAuth && (
+          user ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                backgroundColor: "#dc2626",
+                color: "#fff",
+                border: "none",
+                padding: "6px 12px",
+                borderRadius: "4px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Logout
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                textDecoration: "none",
+                fontSize: "12px",
+                padding: "6px 12px",
+                backgroundColor: "#000",
+                color: "#fff",
+                borderRadius: "4px",
+                fontWeight: 600,
+              }}
+            >
+              Login
+            </Link>
+          )
         )}
       </div>
     </header>
