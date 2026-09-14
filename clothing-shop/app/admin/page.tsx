@@ -3,16 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import Link from "next/link";
 
@@ -21,445 +12,236 @@ const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 export default function AdminPage() {
   const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
-  const [activeTab, setActiveTab] = useState("orders"); // 'overview', 'orders', 'products'
+  const [activeTab, setActiveTab] = useState("orders");
 
-  // Data states
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
 
-  // New Product Form state
-  const [newProdName, setNewProdName] = useState("");
-  const [newProdPrice, setNewProdPrice] = useState("");
-  const [newProdStock, setNewProdStock] = useState("10");
-  const [newProdCategory, setNewProdCategory] = useState("topwear");
-  const [newProdGender, setNewProdGender] = useState("men");
-  const [newProdImage, setNewProdImage] = useState("");
-  const [newProdSizes, setNewProdSizes] = useState("S, M, L, XL");
-  const [newProdColors, setNewProdColors] = useState("Black, White, Navy");
-  const [newProdDesc, setNewProdDesc] = useState("");
-  const [addingProduct, setAddingProduct] = useState(false);
+  // New product form
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("10");
+  const [category, setCategory] = useState("topwear");
+  const [gender, setGender] = useState("men");
+  const [image, setImage] = useState("");
+  const [sizes, setSizes] = useState("S, M, L, XL");
+  const [desc, setDesc] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthChecking(false);
       if (currentUser && currentUser.email === ADMIN_EMAIL) {
-        fetchAllData();
+        fetchData();
       }
     });
     return () => unsub();
   }, []);
 
-  const fetchAllData = async () => {
+  const fetchData = async () => {
     setLoadingData(true);
     try {
-      // Fetch Orders
       const orderSnap = await getDocs(collection(db, "orders"));
-      const orderList = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setOrders(orderList);
+      setOrders(orderSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
-      // Fetch Products
       const prodSnap = await getDocs(collection(db, "products"));
-      const prodList = prodSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProducts(prodList);
+      setProducts(prodSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (err) {
-      console.error("Error loading admin data:", err);
+      console.error(err);
     } finally {
       setLoadingData(false);
     }
   };
 
-  // Order status update
-  const handleStatusChange = async (orderId, newStatus) => {
+  const updateStatus = async (orderId, newStatus) => {
     try {
       await updateDoc(doc(db, "orders", orderId), { status: newStatus });
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
     } catch (err) {
-      alert("Failed to update status: " + err.message);
+      alert("Error: " + err.message);
     }
   };
 
-  // WhatsApp Order Notification to Customer
-  const sendWhatsAppUpdate = (order) => {
-    if (!order.phone) {
-      alert("Customer phone number is missing!");
-      return;
-    }
-    const cleanPhone = order.phone.replace(/[^0-9]/g, "");
-    const formattedPhone = cleanPhone.startsWith("91") ? cleanPhone : `91${cleanPhone}`;
-
-    const text = `Hello ${order.customerName || "Valued Customer"}! 👋\n\n` +
-      `Your order from *KNB Clothing* (Order ID: #${order.id.slice(0, 8)}) status has been updated to: *${order.status || "Confirmed"}* 📦\n\n` +
-      `• Total Amount: ₹${order.total}\n` +
-      `• Items: ${order.items?.map((i) => i.name).join(", ") || "Clothing order"}\n\n` +
-      `Thank you for shopping with KNB Clothing! If you have any questions, reply directly to this message.`;
-
-    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
+  const notifyWhatsApp = (order) => {
+    if (!order.phone) return alert("Phone missing!");
+    const clean = order.phone.replace(/[^0-9]/g, "");
+    const phone = clean.startsWith("91") ? clean : `91${clean}`;
+    const text = `Hi ${order.customerName || "Customer"}! Your KNB Clothing order (#${order.id.slice(0, 8)}) is now: *${order.status || "Confirmed"}*. Total: ₹${order.total}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank");
   };
 
-  // Add Product Handler
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    if (!newProdName || !newProdPrice) {
-      alert("Please enter product name and price");
-      return;
-    }
-
-    setAddingProduct(true);
+    if (!name || !price) return alert("Name and price required");
+    setSaving(true);
     try {
-      const prodData = {
-        name: newProdName.trim(),
-        price: Number(newProdPrice),
-        stock: Number(newProdStock || 0),
-        category: newProdCategory,
-        gender: newProdGender,
-        imageUrl: newProdImage.trim() || "https://placehold.co/400x500?text=KNB+Clothing",
-        sizes: newProdSizes.split(",").map((s) => s.trim()).filter(Boolean),
-        colors: newProdColors.split(",").map((c) => c.trim()).filter(Boolean),
-        description: newProdDesc.trim(),
+      const prod = {
+        name: name.trim(),
+        price: Number(price),
+        stock: Number(stock || 0),
+        category,
+        gender,
+        imageUrl: image.trim() || "https://placehold.co/400x500?text=KNB+Clothing",
+        sizes: sizes.split(",").map((s) => s.trim()).filter(Boolean),
+        description: desc.trim(),
         createdAt: new Date().toISOString(),
       };
-
-      const docRef = await addDoc(collection(db, "products"), prodData);
-      setProducts([{ id: docRef.id, ...prodData }, ...products]);
-
-      // Reset form
-      setNewProdName("");
-      setNewProdPrice("");
-      setNewProdStock("10");
-      setNewProdImage("");
-      setNewProdDesc("");
-      alert("Product added successfully!");
+      const ref = await addDoc(collection(db, "products"), prod);
+      setProducts([{ id: ref.id, ...prod }, ...products]);
+      setName("");
+      setPrice("");
+      setImage("");
+      setDesc("");
+      alert("Product added!");
     } catch (err) {
-      alert("Error adding product: " + err.message);
+      alert(err.message);
     } finally {
-      setAddingProduct(false);
+      setSaving(false);
     }
   };
 
-  // Delete Product Handler
-  const handleDeleteProduct = async (id) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this product?")) return;
     try {
       await deleteDoc(doc(db, "products", id));
       setProducts(products.filter((p) => p.id !== id));
     } catch (err) {
-      alert("Failed to delete product: " + err.message);
+      alert(err.message);
     }
   };
 
-  // Security Gate
   if (authChecking) {
-    return (
-      <div style={{ textAlign: "center", padding: "80px 20px", fontFamily: "sans-serif" }}>
-        Verifying administrator access...
-      </div>
-    );
+    return <div style={{ textAlign: "center", padding: "60px 20px" }}>Checking access...</div>;
   }
 
   if (!user || user.email !== ADMIN_EMAIL) {
     return (
-      <div style={{ maxWidth: "500px", margin: "80px auto", padding: "30px 20px", textAlign: "center", fontFamily: "sans-serif" }}>
-        <h1 style={{ fontSize: "24px", color: "#dc2626", marginBottom: "12px" }}>Access Denied</h1>
-        <p style={{ color: "#666", marginBottom: "20px" }}>
-          You must be signed in as the administrator (<strong>{ADMIN_EMAIL}</strong>) to access this dashboard.
-        </p>
-        <Link
-          href="/login"
-          style={{
-            display: "inline-block",
-            padding: "10px 20px",
-            backgroundColor: "#000",
-            color: "#fff",
-            textDecoration: "none",
-            borderRadius: "6px",
-            fontWeight: 600,
-          }}
-        >
+      <div style={{ textAlign: "center", padding: "60px 20px", fontFamily: "sans-serif" }}>
+        <h2 style={{ color: "#dc2626" }}>Access Denied</h2>
+        <p>Sign in as <strong>{ADMIN_EMAIL}</strong>.</p>
+        <Link href="/login" style={{ display: "inline-block", marginTop: "12px", padding: "8px 16px", background: "#000", color: "#fff", textDecoration: "none", borderRadius: "4px" }}>
           Go to Login
         </Link>
       </div>
     );
   }
 
-  // Analytics Metrics
-  const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
-  const pendingOrders = orders.filter((o) => !o.status || o.status === "Processing" || o.status === "Pending");
-  const lowStockProducts = products.filter((p) => p.stock !== undefined && Number(p.stock) < 5);
+  const revenue = orders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
 
   return (
-    <div style={{ maxWidth: "1100px", margin: "20px auto", padding: "0 20px 80px", fontFamily: "sans-serif" }}>
-      {/* Top Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
-          borderBottom: "2px solid #000",
-          paddingBottom: "16px",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: "0 0 4px 0", fontSize: "24px", fontWeight: "900" }}>KNB Clothing Admin Hub</h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#666" }}>Logged in as: {user.email}</p>
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            onClick={fetchAllData}
-            style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontWeight: 600 }}
-          >
-            🔄 Refresh
-          </button>
-          <Link
-            href="/"
-            style={{ padding: "8px 14px", borderRadius: "6px", background: "#000", color: "#fff", textDecoration: "none", fontSize: "14px", fontWeight: 600 }}
-          >
-            Visit Shop ↗
-          </Link>
+    <div style={{ maxWidth: "1000px", margin: "20px auto", padding: "0 16px 60px", fontFamily: "sans-serif" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #000", paddingBottom: "12px", marginBottom: "20px" }}>
+        <h1 style={{ margin: 0, fontSize: "22px", fontWeight: "900" }}>KNB Admin</h1>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={fetchData} style={{ padding: "6px 12px", borderRadius: "4px", border: "1px solid #ccc", background: "#fff", cursor: "pointer" }}>🔄 Refresh</button>
+          <Link href="/" style={{ padding: "6px 12px", borderRadius: "4px", background: "#000", color: "#fff", textDecoration: "none", fontSize: "13px" }}>Shop ↗</Link>
         </div>
       </div>
 
-      {/* Analytics Overview Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "28px" }}>
-        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
-          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Revenue</span>
-          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>₹{totalRevenue}</h3>
+      {/* Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", marginBottom: "20px" }}>
+        <div style={{ padding: "12px", background: "#f8f9fa", borderRadius: "6px", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "12px", color: "#666" }}>Revenue</span>
+          <h3 style={{ margin: "4px 0 0", fontSize: "18px" }}>₹{revenue}</h3>
         </div>
-        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
-          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Orders</span>
-          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>{orders.length}</h3>
+        <div style={{ padding: "12px", background: "#f8f9fa", borderRadius: "6px", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "12px", color: "#666" }}>Orders</span>
+          <h3 style={{ margin: "4px 0 0", fontSize: "18px" }}>{orders.length}</h3>
         </div>
-        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
-          <span style={{ fontSize: "13px", color: "#991b1b", fontWeight: 600 }}>Pending Action</span>
-          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold", color: "#b91c1c" }}>{pendingOrders.length}</h3>
-        </div>
-        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
-          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Catalog</span>
-          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>{products.length} Items</h3>
+        <div style={{ padding: "12px", background: "#f8f9fa", borderRadius: "6px", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "12px", color: "#666" }}>Catalog</span>
+          <h3 style={{ margin: "4px 0 0", fontSize: "18px" }}>{products.length}</h3>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid #ddd", marginBottom: "24px" }}>
-        <button
-          onClick={() => setActiveTab("orders")}
-          style={{
-            padding: "10px 20px",
-            border: "none",
-            borderBottom: activeTab === "orders" ? "3px solid #000" : "none",
-            backgroundColor: "transparent",
-            fontWeight: activeTab === "orders" ? "bold" : "normal",
-            cursor: "pointer",
-            fontSize: "15px",
-          }}
-        >
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid #ddd", marginBottom: "20px" }}>
+        <button onClick={() => setActiveTab("orders")} style={{ padding: "8px 16px", border: "none", borderBottom: activeTab === "orders" ? "2px solid #000" : "none", background: "transparent", fontWeight: activeTab === "orders" ? "bold" : "normal", cursor: "pointer" }}>
           📦 Orders ({orders.length})
         </button>
-        <button
-          onClick={() => setActiveTab("products")}
-          style={{
-            padding: "10px 20px",
-            border: "none",
-            borderBottom: activeTab === "products" ? "3px solid #000" : "none",
-            backgroundColor: "transparent",
-            fontWeight: activeTab === "products" ? "bold" : "normal",
-            cursor: "pointer",
-            fontSize: "15px",
-          }}
-        >
-          👕 Products & Inventory ({products.length})
+        <button onClick={() => setActiveTab("products")} style={{ padding: "8px 16px", border: "none", borderBottom: activeTab === "products" ? "2px solid #000" : "none", background: "transparent", fontWeight: activeTab === "products" ? "bold" : "normal", cursor: "pointer" }}>
+          👕 Products ({products.length})
         </button>
       </div>
 
-      {/* TAB 1: ORDERS MANAGEMENT */}
+      {/* TAB: ORDERS */}
       {activeTab === "orders" && (
-        <div>
-          <h2 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "16px" }}>Customer Orders</h2>
-
-          {loadingData ? (
-            <p>Loading orders...</p>
-          ) : orders.length === 0 ? (
-            <div style={{ padding: "40px", textAlign: "center", backgroundColor: "#fafafa", borderRadius: "8px", border: "1px dashed #ccc" }}>
-              <p style={{ margin: 0, color: "#666" }}>No orders placed yet. Orders made via checkout will appear here.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {orders.map((ord) => (
-                <div
-                  key={ord.id}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    padding: "18px",
-                    backgroundColor: "#fff",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
-                    <div>
-                      <span style={{ fontSize: "12px", color: "#888", fontWeight: 600 }}>ORDER #{ord.id.slice(0, 8).toUpperCase()}</span>
-                      <h3 style={{ margin: "2px 0", fontSize: "16px", fontWeight: "bold" }}>{ord.customerName || "Guest"} ({ord.phone || "No phone"})</h3>
-                      <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#555" }}>📍 {ord.address || "Address not provided"}</p>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {/* Status Dropdown */}
-                      <select
-                        value={ord.status || "Processing"}
-                        onChange={(e) => handleStatusChange(ord.id, e.target.value)}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: "6px",
-                          border: "1px solid #ccc",
-                          fontSize: "13px",
-                          fontWeight: "600",
-                          backgroundColor: ord.status === "Delivered" ? "#dcfce7" : "#fef9c3",
-                        }}
-                      >
-                        <option value="Processing">Processing</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Packed">Packed</option>
-                        <option value="Shipped">Shipped</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-
-                      {/* WhatsApp Notify Button */}
-                      <button
-                        onClick={() => sendWhatsAppUpdate(ord)}
-                        style={{
-                          padding: "6px 12px",
-                          backgroundColor: "#25D366",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: "6px",
-                          fontSize: "13px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        💬 Notify
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Order items table */}
-                  <div style={{ backgroundColor: "#f9fafb", padding: "10px 14px", borderRadius: "6px", marginBottom: "10px" }}>
-                    <p style={{ margin: "0 0 6px", fontSize: "12px", fontWeight: 600, color: "#666" }}>ITEMS ORDERED:</p>
-                    {ord.items && ord.items.length > 0 ? (
-                      ord.items.map((item, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", margin: "2px 0" }}>
-                          <span>• {item.name} ({item.size || "Free"} / {item.color || "Std"}) × {item.quantity || 1}</span>
-                          <span style={{ fontWeight: 600 }}>₹{item.price * (item.quantity || 1)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p style={{ margin: 0, fontSize: "13px" }}>Order details logged without individual items list.</p>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px" }}>
-                    <span style={{ color: "#666" }}>Payment: <strong>{ord.paymentMethod || "UPI"}</strong></span>
-                    <span style={{ fontSize: "16px", fontWeight: "bold" }}>Total: ₹{ord.total}</span>
-                  </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {loadingData ? <p>Loading orders...</p> : orders.length === 0 ? <p>No orders placed yet.</p> : orders.map((ord) => (
+            <div key={ord.id} style={{ border: "1px solid #eee", borderRadius: "8px", padding: "14px", background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
+                <div>
+                  <strong>{ord.customerName || "Customer"}</strong> ({ord.phone || "No phone"})
+                  <div style={{ fontSize: "12px", color: "#666" }}>📍 {ord.address}</div>
                 </div>
-              ))}
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <select value={ord.status || "Processing"} onChange={(e) => updateStatus(ord.id, e.target.value)} style={{ padding: "4px 8px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "12px" }}>
+                    <option value="Processing">Processing</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Packed">Packed</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                  <button onClick={() => notifyWhatsApp(ord)} style={{ padding: "4px 8px", background: "#25D366", color: "#fff", border: "none", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}>💬 Notify</button>
+                </div>
+              </div>
+              <div style={{ fontSize: "13px", color: "#444" }}>
+                Items: {ord.items?.map((i) => `${i.name} (x${i.quantity || 1})`).join(", ")}
+              </div>
+              <div style={{ marginTop: "6px", fontWeight: "bold", fontSize: "14px" }}>Total: ₹{ord.total} ({ord.paymentMethod || "UPI"})</div>
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* TAB 2: PRODUCTS & INVENTORY */}
+      {/* TAB: PRODUCTS */}
       {activeTab === "products" && (
         <div>
-          {/* Add Product Section */}
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "20px", backgroundColor: "#fff", marginBottom: "30px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: "700", margin: "0 0 16px" }}>➕ Add New Clothing Item</h2>
-            <form onSubmit={handleAddProduct} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Product Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Classic Oversized Tee"
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
-                />
-              </div>
+          <form onSubmit={handleAddProduct} style={{ display: "flex", flexDirection: "column", gap: "8px", border: "1px solid #eee", padding: "16px", borderRadius: "8px", marginBottom: "20px" }}>
+            <h3 style={{ margin: "0 0 4px" }}>Add Product</h3>
+            <input placeholder="Title *" value={name} onChange={(e) => setName(e.target.value)} required style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input type="number" placeholder="Price (₹) *" value={price} onChange={(e) => setPrice(e.target.value)} required style={{ flex: 1, padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+              <input type="number" placeholder="Stock" value={stock} onChange={(e) => setStock(e.target.value)} style={{ flex: 1, padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ flex: 1, padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }}>
+                <option value="topwear">Topwear</option>
+                <option value="bottomwear">Bottomwear</option>
+              </select>
+              <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ flex: 1, padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }}>
+                <option value="men">Men</option>
+                <option value="women">Women</option>
+                <option value="unisex">Unisex</option>
+              </select>
+            </div>
+            <input placeholder="Image URL" value={image} onChange={(e) => setImage(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            <input placeholder="Sizes (e.g. S, M, L, XL)" value={sizes} onChange={(e) => setSizes(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            <textarea placeholder="Description" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            <button type="submit" disabled={saving} style={{ padding: "10px", background: "#000", color: "#fff", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
+              {saving ? "Saving..." : "Add Product"}
+            </button>
+          </form>
 
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Selling Price (₹) *</label>
-                <input
-                  type="number"
-                  required
-                  placeholder="e.g. 599"
-                  value={newProdPrice}
-                  onChange={(e) => setNewProdPrice(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
-                />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+            {products.map((p) => (
+              <div key={p.id} style={{ border: "1px solid #eee", borderRadius: "6px", padding: "10px", background: "#fff" }}>
+                <img src={p.imageUrl || p.image || "https://placehold.co/180x200?text=No+Img"} alt={p.name} style={{ width: "100%", height: "140px", objectFit: "cover", borderRadius: "4px" }} />
+                <div style={{ fontWeight: "600", fontSize: "13px", marginTop: "6px" }}>{p.name}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", margin: "4px 0" }}>
+                  <span>₹{p.price}</span>
+                  <span style={{ color: p.stock < 5 ? "red" : "green" }}>Stock: {p.stock ?? 0}</span>
+                </div>
+                <button onClick={() => handleDelete(p.id)} style={{ width: "100%", padding: "4px", background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: "4px", fontSize: "11px", cursor: "pointer" }}>
+                  Delete
+                </button>
               </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Stock Quantity</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 25"
-                  value={newProdStock}
-                  onChange={(e) => setNewProdStock(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Category</label>
-                <select
-                  value={newProdCategory}
-                  onChange={(e) => setNewProdCategory(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", backgroundColor: "#fff" }}
-                >
-                  <option value="topwear">Topwear</option>
-                  <option value="bottomwear">Bottomwear</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Target Gender</label>
-                <select
-                  value={newProdGender}
-                  onChange={(e) => setNewProdGender(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", backgroundColor: "#fff" }}
-                >
-                  <option value="men">Men</option>
-                  <option value="women">Women</option>
-                  <option value="unisex">Unisex</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Image URL</label>
-                <input
-                  type="text"
-                  placeholder="https://..."
-                  value={newProdImage}
-                  onChange={(e) => setNewProdImage(e.target.value)}
-                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
-                />
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Sizes (comma separated)</label>
-                <input
-                  type="text"
-                  placeholder="S, M, L, XL, XXL"
-        
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
