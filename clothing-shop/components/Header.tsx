@@ -8,8 +8,10 @@ import { auth } from "@/lib/firebase";
 import { useStore } from "@/components/StoreProvider";
 import { useRouter } from "next/navigation";
 
+const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
+
 export default function Header() {
-  const { cart, wishlist } = useStore();
+  const { cart } = useStore();
   const [user, setUser] = useState(null);
   const router = useRouter();
 
@@ -23,13 +25,14 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      router.push("/login");
+      router.push("/");
     } catch (error) {
       console.error("Logout error:", error);
     }
   };
 
   const cartCount = cart ? cart.reduce((total, item) => total + (item.quantity || 1), 0) : 0;
+  const isAdmin = user && user.email === ADMIN_EMAIL;
 
   return (
     <header
@@ -81,22 +84,25 @@ export default function Header() {
           🛍️ Bag ({cartCount})
         </Link>
 
-        <Link
-          href="/admin"
-          style={{
-            textDecoration: "none",
-            fontSize: "12px",
-            padding: "6px 10px",
-            backgroundColor: "#f0f0f0",
-            borderRadius: "4px",
-            color: "#333",
-            fontWeight: 600,
-          }}
-        >
-          Admin
-        </Link>
+        {/* Admin Button - ONLY visible to kanchinagababu6@gmail.com */}
+        {isAdmin && (
+          <Link
+            href="/admin"
+            style={{
+              textDecoration: "none",
+              fontSize: "12px",
+              padding: "6px 10px",
+              backgroundColor: "#f0f0f0",
+              borderRadius: "4px",
+              color: "#333",
+              fontWeight: 600,
+            }}
+          >
+            Admin
+          </Link>
+        )}
 
-        {/* Dynamic Auth Section */}
+        {/* Dynamic Login / Logout */}
         {user ? (
           <button
             onClick={handleLogout}
