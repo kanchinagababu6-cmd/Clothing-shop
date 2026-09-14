@@ -7,11 +7,14 @@ import { auth, db } from "@/lib/firebase";
 import { collection, addDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const WHATSAPP_PHONE_NUMBER = "917075596910";
+const UPI_ID = "7075596910@ybl"; // Change to your preferred UPI VPA / PhonePe / GPay
 
 export default function CheckoutPage() {
   const { cart, clearCart } = useStore();
+  const router = useRouter();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -25,6 +28,9 @@ export default function CheckoutPage() {
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState("");
+
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState<any>(null);
 
   // Load saved customer address from Firestore on mount
   useEffect(() => {
@@ -63,50 +69,95 @@ export default function CheckoutPage() {
     } else if (code === "FLAT100") {
       setDiscount(100);
       setCouponMsg("₹100 discount applied!");
+    } else if (code === "SAVE50") {
+      setDiscount(50);
+      setCouponMsg("₹50 discount applied!");
     } else {
       setCouponMsg("Invalid coupon code.");
     }
   };
 
+  // Helper to persist order to Firestore
+  const createFirestoreOrder = async () => {
+    const currentUser = auth.currentUser;
+    const fullAddress = `${address}, ${city} - ${pincode}`;
+
+    if (currentUser) {
+      await setDoc(
+        doc(db, "users", currentUser.uid),
+        {
+          savedAddress: { name, phone, address, city, pincode },
+          email: currentUser.email,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+
+    const orderRef = await addDoc(collection(db, "orders"), {
+      userId: currentUser ? currentUser.uid : "guest",
+      customerEmail: currentUser ? currentUser.email : "",
+      customerName: name,
+      phone,
+      address: fullAddress,
+      notes: orderNotes,
+      items: cart,
+      subtotal,
+      discount,
+      shippingFee,
+      total: finalTotal,
+      status: "Processing",
+      paymentMethod,
+      orderSource: "Web Store",
+      createdAt: new Date().toISOString(),
+    });
+
+    return orderRef.id;
+  };
+
+  // 1. Direct Web-Only Order Placement
+  const handleDirectWebOrder = async () => {
+    if (!name || !phone || !address || !pincode) {
+      alert("Please enter Name, Phone, Delivery Address, and Pincode.");
+      return;
+    }
+
+    setPlacingOrder(true);
+    try {
+      const orderId = await createFirestoreOrder();
+      setOrderSuccess({
+        id: orderId,
+        total: finalTotal,
+        paymentMethod,
+        phone,
+      });
+      if (clearCart) clearCart();
+    } catch (e) {
+      console.error(e);
+      alert("Failed to place order: " + e.message);
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  // 2. WhatsApp Order Placement
   const handleWhatsAppCheckout = async () => {
     if (!name || !phone || !address || !pincode) {
       alert("Please fill in Name, Phone, Delivery Address, and Pincode.");
       return;
     }
 
-    const currentUser = auth.currentUser;
-    const fullAddress = `${address}, ${city} - ${pincode}`;
-
-    // Save/Update address and log order in Firestore
+    let orderId = "PENDING";
     try {
-      if (currentUser) {
-        await setDoc(
-          doc(db, "users", currentUser.uid),
-          {
-            savedAddress: { name, phone, address, city, pincode },
-            email: currentUser.email,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-
-        await addDoc(collection(db, "orders"), {
-          userId: currentUser.uid,
-          customerName: name,
-          phone,
-          address: fullAddress,
-          items: cart,
-          total: finalTotal,
-          status: "Processing",
-          paymentMethod,
-          createdAt: new Date().toISOString(),
-        });
-      }
+      orderId = await createFirestoreOrder();
+      if (clearCart) clearCart();
     } catch (e) {
       console.log("Firestore sync note:", e);
     }
 
+    const fullAddress = `${address}, ${city} - ${pincode}`;
     let msg = `🛍️ *NEW ORDER - KNB CLOTHING*\n`;
+    msg += `Order ID: #${orderId.slice(0, 8)}\n`;
     msg += `--------------------------------\n`;
     msg += `👤 *Customer Details:*\n`;
     msg += `• Name: ${name}\n`;
@@ -130,6 +181,57 @@ export default function CheckoutPage() {
     window.open(`https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
+  // ORDER SUCCESS SCREEN
+  if (orderSuccess) {
+    const upiLink = `upi://pay?pa=${UPI_ID}&pn=KNB%20Clothing&am=${orderSuccess.total}&cu=INR`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiLink)}`;
+
+    return (
+      <div style={{ maxWidth: "600px", margin: "40px auto", padding: "24px", textAlign: "center", fontFamily: "sans-serif" }}>
+        <div style={{ fontSize: "50px", marginBottom: "10px" }}>🎉</div>
+        <h1 style={{ fontSize: "24px", fontWeight: "900", margin: "0 0 8px" }}>Order Confirmed!</h1>
+        <p style={{ color: "#555", fontSize: "14px", margin: "0 0 20px" }}>
+          Thank you for shopping with <strong>KNB Clothing</strong>!
+        </p>
+
+        <div style={{ background: "#f8f9fa", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "18px", textAlign: "left", marginBottom: "24px" }}>
+          <p style={{ margin: "4px 0", fontSize: "13px" }}><strong>Order ID:</strong> #{orderSuccess.id.slice(0, 8).toUpperCase()}</p>
+          <p style={{ margin: "4px 0", fontSize: "13px" }}><strong>Total Payable:</strong> ₹{orderSuccess.total}</p>
+          <p style={{ margin: "4px 0", fontSize: "13px" }}><strong>Payment Mode:</strong> {orderSuccess.paymentMethod}</p>
+          <p style={{ margin: "4px 0", fontSize: "13px" }}><strong>Phone:</strong> {orderSuccess.phone}</p>
+        </div>
+
+        {orderSuccess.paymentMethod === "UPI" && (
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "20px", marginBottom: "24px" }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "16px", color: "#1e3a8a" }}>📲 Complete Your UPI Payment</h3>
+            <p style={{ fontSize: "13px", color: "#475569", margin: "0 0 14px" }}>
+              Scan this QR using Google Pay, PhonePe, Paytm, or BHIM:
+            </p>
+            <img src={qrUrl} alt="UPI QR Code" style={{ borderRadius: "8px", border: "2px solid #fff", margin: "0 auto", display: "block" }} />
+            <p style={{ marginTop: "12px", fontSize: "13px", fontWeight: "bold" }}>
+              UPI ID: <span style={{ color: "#000", background: "#fff", padding: "2px 8px", borderRadius: "4px" }}>{UPI_ID}</span>
+            </p>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+          <Link
+            href="/profile"
+            style={{ padding: "12px 20px", background: "#000", color: "#fff", textDecoration: "none", borderRadius: "6px", fontSize: "14px", fontWeight: "600" }}
+          >
+            View in Profile →
+          </Link>
+          <Link
+            href="/"
+            style={{ padding: "12px 20px", background: "#fff", border: "1px solid #ccc", color: "#000", textDecoration: "none", borderRadius: "6px", fontSize: "14px", fontWeight: "600" }}
+          >
+            Continue Shopping
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!cart || cart.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "80px 20px", fontFamily: "sans-serif" }}>
@@ -145,7 +247,6 @@ export default function CheckoutPage() {
     <div style={{ maxWidth: "760px", margin: "30px auto", padding: "0 20px 80px", fontFamily: "sans-serif" }}>
       <h1 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "20px" }}>Checkout - KNB Clothing</h1>
 
-      {/* Saved Address Notification */}
       {savedAddressFound && (
         <div style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af", padding: "10px 14px", borderRadius: "6px", marginBottom: "16px", fontSize: "13px" }}>
           ✓ We've auto-filled your saved delivery address. Feel free to edit it if shipping somewhere else!
@@ -156,7 +257,7 @@ export default function CheckoutPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
         <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>1. Delivery Address</h3>
         <input placeholder="Full Name *" value={name} onChange={(e) => setName(e.target.value)} style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "6px" }} />
-        <input placeholder="Phone Number (WhatsApp) *" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "6px" }} />
+        <input placeholder="Phone Number *" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "6px" }} />
         <input placeholder="Street Address, House / Flat No. *" value={address} onChange={(e) => setAddress(e.target.value)} style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "6px" }} />
         <div style={{ display: "flex", gap: "10px" }}>
           <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={{ flex: 1, padding: "10px", border: "1px solid #ccc", borderRadius: "6px" }} />
@@ -189,16 +290,62 @@ export default function CheckoutPage() {
       </div>
 
       {/* Pricing Summary */}
-      <div style={{ borderTop: "2px solid #eee", paddingTop: "15px", marginBottom: "20px" }}>
+      <div style={{ borderTop: "2px solid #eee", paddingTop: "15px", marginBottom: "24px" }}>
         <p style={{ display: "flex", justifyContent: "space-between", margin: "4px 0" }}><span>Subtotal:</span> <span>₹{subtotal}</span></p>
         {discount > 0 && <p style={{ display: "flex", justifyContent: "space-between", margin: "4px 0", color: "green" }}><span>Discount:</span> <span>-₹{discount}</span></p>}
         <p style={{ display: "flex", justifyContent: "space-between", margin: "4px 0" }}><span>Shipping:</span> <span>{shippingFee === 0 ? "FREE" : `₹${shippingFee}`}</span></p>
         <h2 style={{ display: "flex", justifyContent: "space-between", marginTop: "10px" }}><span>Grand Total:</span> <span>₹{finalTotal}</span></h2>
       </div>
 
-      <button onClick={handleWhatsAppCheckout} style={{ width: "100%", padding: "14px", background: "#25D366", color: "#fff", border: "none", borderRadius: "8px", fontSize: "16px", fontWeight: "bold", cursor: "pointer" }}>
-        💬 Complete Order via WhatsApp
-      </button>
+      {/* TWO DISTINCT ORDER OPTIONS */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {/* OPTION 1: DIRECT WEBSITE ORDER */}
+        <button
+          type="button"
+          onClick={handleDirectWebOrder}
+          disabled={placingOrder}
+          style={{
+            width: "100%",
+            padding: "15px",
+            backgroundColor: "#000",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "16px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
+        >
+          {placingOrder ? "Placing Order..." : "⚡ Place Order on Website"}
+        </button>
+
+        {/* OPTION 2: WHATSAPP ORDER */}
+        <button
+          type="button"
+          onClick={handleWhatsAppCheckout}
+          style={{
+            width: "100%",
+            padding: "14px",
+            backgroundColor: "#25D366",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "15px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
+        >
+          💬 Order via WhatsApp
+        </button>
+      </div>
     </div>
   );
 }
