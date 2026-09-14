@@ -3,17 +3,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useStore } from "@/components/StoreProvider";
-import { useRouter } from "next/navigation";
 
 const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 
 export default function Header() {
   const { cart } = useStore();
   const [user, setUser] = useState(null);
-  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -22,15 +20,6 @@ export default function Header() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.push("/");
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
-
   const cartCount = cart ? cart.reduce((total, item) => total + (item.quantity || 1), 0) : 0;
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -38,7 +27,7 @@ export default function Header() {
     <header
       style={{
         borderBottom: "1px solid #eee",
-        padding: "16px 24px",
+        padding: "14px 20px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -53,15 +42,15 @@ export default function Header() {
         style={{
           textDecoration: "none",
           color: "#000",
-          fontSize: "20px",
+          fontSize: "19px",
           fontWeight: "900",
-          letterSpacing: "1px",
+          letterSpacing: "0.5px",
         }}
       >
         KNB CLOTHING
       </Link>
 
-      <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
         <Link
           href="/"
           style={{ textDecoration: "none", color: "#333", fontSize: "14px", fontWeight: 600 }}
@@ -84,7 +73,26 @@ export default function Header() {
           🛍️ Bag ({cartCount})
         </Link>
 
-        {/* Admin Button - ONLY visible to kanchinagababu6@gmail.com */}
+        {/* Profile Tab */}
+        <Link
+          href={user ? "/profile" : "/login"}
+          style={{
+            textDecoration: "none",
+            fontSize: "13px",
+            padding: "6px 12px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "6px",
+            color: "#000",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          👤 {user ? "Profile" : "Login"}
+        </Link>
+
+        {/* Admin Tab - strictly for kanchinagababu6@gmail.com */}
         {isAdmin && (
           <Link
             href="/admin"
@@ -92,47 +100,13 @@ export default function Header() {
               textDecoration: "none",
               fontSize: "12px",
               padding: "6px 10px",
-              backgroundColor: "#f0f0f0",
+              backgroundColor: "#000",
               borderRadius: "4px",
-              color: "#333",
+              color: "#fff",
               fontWeight: 600,
             }}
           >
             Admin
-          </Link>
-        )}
-
-        {/* Dynamic Login / Logout */}
-        {user ? (
-          <button
-            onClick={handleLogout}
-            style={{
-              backgroundColor: "#dc2626",
-              color: "#fff",
-              border: "none",
-              padding: "6px 12px",
-              borderRadius: "4px",
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Logout
-          </button>
-        ) : (
-          <Link
-            href="/login"
-            style={{
-              textDecoration: "none",
-              fontSize: "12px",
-              padding: "6px 12px",
-              backgroundColor: "#000",
-              color: "#fff",
-              borderRadius: "4px",
-              fontWeight: 600,
-            }}
-          >
-            Login
           </Link>
         )}
       </div>
