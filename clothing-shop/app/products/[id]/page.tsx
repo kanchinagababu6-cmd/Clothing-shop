@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useStore } from "@/components/StoreContext";
+import { useStore } from "@/components/StoreProvider";
 import type { Product } from "@/lib/types";
 import { useParams, useRouter } from "next/navigation";
 
