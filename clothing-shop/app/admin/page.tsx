@@ -1,34 +1,236 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import type { Order, Product } from "@/lib/types";
+import { useState, useEffect } from "react";
+import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
+import type { Product } from "@/lib/types";
 
-export default function Admin() {
-  const [user,setUser]=useState<any>(null);
-  const [products,setProducts]=useState<Product[]>([]);
-  const [orders,setOrders]=useState<Order[]>([]);
-  const [form,setForm]=useState({name:"",description:"",price:"",image:"",sizes:"S,M,L,XL",colors:"Black,White",stock:"10"});
+const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 
-  async function load(){const ps=await getDocs(collection(db,"products"));setProducts(ps.docs.map(d=>({id:d.id,...d.data()} as Product)));const os=await getDocs(collection(db,"orders"));setOrders(os.docs.map(d=>({id:d.id,...d.data()} as Order)).sort((a,b)=>b.createdAt-a.createdAt));}
-  useEffect(()=>onAuthStateChanged(auth,setUser),[]);
-  useEffect(()=>{if(user?.email===process.env.NEXT_PUBLIC_ADMIN_EMAIL)load()},[user]);
+export default function AdminPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
 
-  if(!user) return <main className="container"><h1>Please sign in first.</h1></main>;
-  if(user.email!==process.env.NEXT_PUBLIC_ADMIN_EMAIL) return <main className="container"><h1>Access denied</h1><p>Your account is not configured as an admin.</p></main>;
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [image, setImage] = useState("");
+  const [gender, setGender] = useState("Men");
+  const [category, setCategory] = useState("Topwear");
+  const [sizes, setSizes] = useState("S, M, L, XL");
+  const [colors, setColors] = useState("Black, White");
+  const [stock, setStock] = useState("10");
 
-  async function addProduct(e:any){e.preventDefault();await addDoc(collection(db,"products"),{...form,price:Number(form.price),stock:Number(form.stock),sizes:form.sizes.split(",").map(x=>x.trim()),colors:form.colors.split(",").map(x=>x.trim()),createdAt:Date.now()});setForm({...form,name:"",description:"",price:"",image:"",stock:"10"});load();}
-  async function removeProduct(id:string){if(confirm("Delete this product?")){await deleteDoc(doc(db,"products",id));load();}}
-  async function status(id:string,status:string){await updateDoc(doc(db,"orders",id),{status});load();}
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  return <main className="container"><h1>Admin Dashboard</h1>
-    <h2>Add Product</h2><form className="form" onSubmit={addProduct}>
-      {Object.entries(form).map(([k,v])=><input key={k} placeholder={k} value={v} onChange={e=>setForm({...form,[k]:e.target.value})} required/>)}
-      <button className="btn">Add Product</button>
-    </form>
-    <h2>Products</h2><table className="adminTable"><thead><tr><th>Name</th><th>Price</th><th>Stock</th><th></th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td>{p.name}</td><td>₹{p.price}</td><td>{p.stock}</td><td><button onClick={()=>removeProduct(p.id)}>Delete</button></td></tr>)}</tbody></table>
-    <h2>Customer Orders</h2><table className="adminTable"><thead><tr><th>Customer</th><th>Contact</th><th>Address</th><th>Order</th><th>Status</th></tr></thead><tbody>{orders.map(o=><tr key={o.id}><td>{o.customerName}<br/>{o.email}</td><td>{o.phone}</td><td>{o.address}, {o.city}, {o.state} - {o.postalCode}</td><td>{o.items.map((i:any,j:number)=><div key={j}>{i.name} × {i.quantity} ({i.size}/{i.color})</div>)}<b>Total ₹{o.total}</b></td><td><select value={o.status} onChange={e=>status(o.id!,e.target.value)}>{["Pending","Confirmed","Shipped","Delivered","Cancelled"].map(s=><option key={s}>{s}</option>)}</select></td></tr>)}</tbody></table>
-  </main>;
-}
+  const loadProducts = async () => {
+    const snap = await getDocs(collection(db, "products"));
+    setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product)));
+  };
+
+  useEffect(() => {
+    if (user?.email === ADMIN_EMAIL) {
+      loadProducts();
+    }
+  }, [user]);
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !price || !image) return alert("Please fill required fields (name, price, image link).");
+
+    try {
+      await addDoc(collection(db, "products"), {
+        name,
+        description,
+        price: Number(price),
+        image,
+        gender,
+        category,
+        sizes: sizes.split(",").map((s) => s.trim()),
+        colors: colors.split(",").map((c) => c.trim()),
+        stock: Number(stock),
+        createdAt: new Date(),
+      });
+
+      alert("Product added successfully!");
+      setName("");
+      setDescription("");
+      setPrice("");
+      setImage("");
+      loadProducts();
+    } catch (err: any) {
+      alert("Error adding product: " + err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this product?")) {
+      await deleteDoc(doc(db, "products", id));
+      loadProducts();
+    }
+  };
+
+  if (loading) return <p style={{ padding: "40px", textAlign: "center" }}>Loading admin panel...</p>;
+
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return (
+      <main style={{ padding: "40px", textAlign: "center", fontFamily: "sans-serif" }}>
+        <h2>Access Denied</h2>
+        <p>You must be signed in as the administrator ({ADMIN_EMAIL}) to view this page.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ maxWidth: "700px", margin: "30px auto", padding: "0 16px", fontFamily: "sans-serif" }}>
+      <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "20px" }}>Admin Dashboard</h1>
+
+      <form onSubmit={handleAddProduct} style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8f9fa", padding: "20px", borderRadius: "8px", border: "1px solid #e9ecef" }}>
+        <h3>Add New Product</h3>
+
+        <div>
+          <label style={{ fontSize: "14px", fontWeight: 600 }}>Product Name *</label>
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: "14px", fontWeight: 600 }}>Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Price (₹) *</label>
+            <input
+              type="number"
+              required
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Stock Quantity</label>
+            <input
+              type="number"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            />
+          </div>
+        </div>
+
+        {/* Category Pickers */}
+        <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Gender</label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            >
+              <option value="Men">Men</option>
+              <option value="Women">Women</option>
+              <option value="Unisex">Unisex</option>
+            </select>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            >
+              <option value="Topwear">Topwear (Shirts, Tees, Hoodies)</option>
+              <option value="Bottomwear">Bottomwear (Jeans, Trousers)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: "14px", fontWeight: 600 }}>Image Direct URL *</label>
+          <input
+            type="url"
+            required
+            placeholder="https://i.ibb.co/... or https://images.unsplash.com/..."
+            value={image}
+            onChange={(e) => setImage(e.target.value)}
+            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Sizes (comma separated)</label>
+            <input
+              type="text"
+              value={sizes}
+              onChange={(e) => setSizes(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: "14px", fontWeight: 600 }}>Colors (comma separated)</label>
+            <input
+              type="text"
+              value={colors}
+              onChange={(e) => setColors(e.target.value)}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          style={{ background: "#000", color: "#fff", padding: "10px", borderRadius: "6px", border: "none", cursor: "pointer", marginTop: "8px" }}
+        >
+          Add Product
+        </button>
+      </form>
+
+      <h3 style={{ marginTop: "30px", marginBottom: "12px" }}>Current Catalog</h3>
+      {products.length === 0 ? (
+        <p style={{ color: "#777" }}>No products in database.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {products.map((p) => (
+            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #eee", padding: "10px", borderRadius: "6px" }}>
+              <div>
+                <strong>{p.name}</strong> — ₹{p.price}
+                <div style={{ fontSize: "12px", color: "#666" }}>
+                  {p.gender || "All"} | {p.category || "General"} | {p.stock} in stock
+                </div>
+              </div>
+              <button
+                onClick={() => handleDelete(p.id)}
+                style={{ background: "#dc3545", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
+  );
+                                        }
+
