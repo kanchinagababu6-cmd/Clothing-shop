@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 
 export default function Footer() {
@@ -27,9 +26,6 @@ export default function Footer() {
         <Link href="/checkout" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
           Checkout
         </Link>
-        <Link href="/terms" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
-          Terms & Conditions
-        </Link>
         <a
           href="https://wa.me/917075596910"
           target="_blank"
@@ -43,19 +39,6 @@ export default function Footer() {
       <p style={{ margin: 0, color: "#999", fontSize: "12px" }}>
         © {new Date().getFullYear()} KNB Clothing. All rights reserved.
       </p>
-    </footer>
-  );
-}
-          <p style={{ fontSize: '14px', margin: '6px 0', color: '#9ca3af' }}>
-            <strong style={{ color: '#fff' }}>Location: </strong> India
-          </p>
-        </div>
-
-      </div>
-
-      <div style={{ textAlign: 'center', borderTop: '1px solid #374151', marginTop: '30px', paddingTop: '20px', fontSize: '12px', color: '#6b7280' }}>
-        &copy; {new Date().getFullYear()} Threadly. All rights reserved.
-      </div>
     </footer>
   );
 }
