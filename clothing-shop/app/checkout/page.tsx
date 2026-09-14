@@ -69,7 +69,8 @@ export default function CheckoutPage() {
       return;
     }
 
-    let msg = `🛍️ *NEW ORDER - THREADLY STORE*\n`;
+    let msg = `🛍️ *NEW ORDER - KNB CLOTHING*\n`;
+
     msg += `--------------------------------\n`;
     msg += `👤 *Customer Details:*\n`;
     msg += `• *Name:* ${name.trim()}\n`;
