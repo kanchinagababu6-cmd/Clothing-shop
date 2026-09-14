@@ -217,7 +217,7 @@ export default function AdminPage() {
               <div>
                 <strong>{p.name}</strong> — ₹{p.price}
                 <div style={{ fontSize: "12px", color: "#666" }}>
-                  {p.gender || "All"} | {p.category || "General"} | {p.stock} in stock
+                  {(p as any).gender || "All"} | {(p as any).category || "General"} | {p.stock} in stock
                 </div>
               </div>
               <button
