@@ -1,14 +1,35 @@
 // @ts-nocheck
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useStore } from "@/components/StoreProvider";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const { cart, wishlist } = useStore();
+  const [user, setUser] = useState(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
 
   const cartCount = cart ? cart.reduce((total, item) => total + (item.quantity || 1), 0) : 0;
-  const wishCount = wishlist ? wishlist.length : 0;
 
   return (
     <header
@@ -29,7 +50,7 @@ export default function Header() {
         style={{
           textDecoration: "none",
           color: "#000",
-          fontSize: "22px",
+          fontSize: "20px",
           fontWeight: "900",
           letterSpacing: "1px",
         }}
@@ -37,7 +58,7 @@ export default function Header() {
         KNB CLOTHING
       </Link>
 
-      <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
         <Link
           href="/"
           style={{ textDecoration: "none", color: "#333", fontSize: "14px", fontWeight: 600 }}
@@ -65,7 +86,7 @@ export default function Header() {
           style={{
             textDecoration: "none",
             fontSize: "12px",
-            padding: "6px 12px",
+            padding: "6px 10px",
             backgroundColor: "#f0f0f0",
             borderRadius: "4px",
             color: "#333",
@@ -74,6 +95,40 @@ export default function Header() {
         >
           Admin
         </Link>
+
+        {/* Dynamic Auth Section */}
+        {user ? (
+          <button
+            onClick={handleLogout}
+            style={{
+              backgroundColor: "#dc2626",
+              color: "#fff",
+              border: "none",
+              padding: "6px 12px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Logout
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            style={{
+              textDecoration: "none",
+              fontSize: "12px",
+              padding: "6px 12px",
+              backgroundColor: "#000",
+              color: "#fff",
+              borderRadius: "4px",
+              fontWeight: 600,
+            }}
+          >
+            Login
+          </Link>
+        )}
       </div>
     </header>
   );
