@@ -24,7 +24,7 @@ export default function AdminPage() {
   const [stock, setStock] = useState("10");
   const [category, setCategory] = useState("topwear");
   const [gender, setGender] = useState("men");
-  const [image, setImage] = useState("");
+  const [imagesInput, setImagesInput] = useState("");
   const [sizes, setSizes] = useState("S, M, L, XL");
   const [desc, setDesc] = useState("");
   const [saving, setSaving] = useState(false);
@@ -77,13 +77,19 @@ export default function AdminPage() {
     if (!name || !price) return alert("Name and price required");
     setSaving(true);
     try {
+      const imgArray = imagesInput
+        .split(",")
+        .map((img) => img.trim())
+        .filter(Boolean);
+
       const prod = {
         name: name.trim(),
         price: Number(price),
         stock: Number(stock || 0),
         category,
         gender,
-        imageUrl: image.trim() || "https://placehold.co/400x500?text=KNB+Clothing",
+        images: imgArray.length > 0 ? imgArray : ["https://placehold.co/400x500?text=KNB+Clothing"],
+        imageUrl: imgArray[0] || "https://placehold.co/400x500?text=KNB+Clothing",
         sizes: sizes.split(",").map((s) => s.trim()).filter(Boolean),
         description: desc.trim(),
         createdAt: new Date().toISOString(),
@@ -92,9 +98,9 @@ export default function AdminPage() {
       setProducts([{ id: ref.id, ...prod }, ...products]);
       setName("");
       setPrice("");
-      setImage("");
+      setImagesInput("");
       setDesc("");
-      alert("Product added!");
+      alert("Product added with image gallery support!");
     } catch (err) {
       alert(err.message);
     } finally {
@@ -112,9 +118,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authChecking) {
-    return <div style={{ textAlign: "center", padding: "60px 20px" }}>Checking access...</div>;
-  }
+  if (authChecking) return <div style={{ textAlign: "center", padding: "60px 20px" }}>Checking access...</div>;
 
   if (!user || user.email !== ADMIN_EMAIL) {
     return (
@@ -217,7 +221,7 @@ export default function AdminPage() {
                 <option value="unisex">Unisex</option>
               </select>
             </div>
-            <input placeholder="Image URL" value={image} onChange={(e) => setImage(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
+            <input placeholder="Image URLs (comma-separated for multi-angle gallery)" value={imagesInput} onChange={(e) => setImagesInput(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
             <input placeholder="Sizes (e.g. S, M, L, XL)" value={sizes} onChange={(e) => setSizes(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
             <textarea placeholder="Description" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "4px" }} />
             <button type="submit" disabled={saving} style={{ padding: "10px", background: "#000", color: "#fff", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}>
@@ -228,7 +232,7 @@ export default function AdminPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
             {products.map((p) => (
               <div key={p.id} style={{ border: "1px solid #eee", borderRadius: "6px", padding: "10px", background: "#fff" }}>
-                <img src={p.imageUrl || p.image || "https://placehold.co/180x200?text=No+Img"} alt={p.name} style={{ width: "100%", height: "140px", objectFit: "cover", borderRadius: "4px" }} />
+                <img src={p.images?.[0] || p.imageUrl || p.image || "https://placehold.co/180x200?text=No+Img"} alt={p.name} style={{ width: "100%", height: "140px", objectFit: "cover", borderRadius: "4px" }} />
                 <div style={{ fontWeight: "600", fontSize: "13px", marginTop: "6px" }}>{p.name}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", margin: "4px 0" }}>
                   <span>₹{p.price}</span>
