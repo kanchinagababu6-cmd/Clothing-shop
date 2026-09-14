@@ -13,3 +13,13 @@ export interface Product {
   createdAt?: any;
 }
 
+export interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image?: string;
+  imageUrl?: string;
+  size?: string;
+  color?: string;
+  quantity: number;
+}
