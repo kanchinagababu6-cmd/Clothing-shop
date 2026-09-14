@@ -1,248 +1,465 @@
 // @ts-nocheck
 "use client";
 
-import { useState, useEffect } from "react";
-import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { db, auth } from "@/lib/firebase";
-
-interface AdminProduct {
-  id: string;
-  name: string;
-  description?: string;
-  price: number;
-  image?: string;
-  imageUrl?: string;
-  gender?: string;
-  category?: string;
-  sizes?: string[];
-  colors?: string[];
-  stock: number;
-}
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import Link from "next/link";
 
 const ADMIN_EMAIL = "kanchinagababu6@gmail.com";
 
 export default function AdminPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [activeTab, setActiveTab] = useState("orders"); // 'overview', 'orders', 'products'
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [image, setImage] = useState("");
-  const [gender, setGender] = useState("Men");
-  const [category, setCategory] = useState("Topwear");
-  const [sizes, setSizes] = useState("S, M, L, XL");
-  const [colors, setColors] = useState("Black, White");
-  const [stock, setStock] = useState("10");
+  // Data states
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // New Product Form state
+  const [newProdName, setNewProdName] = useState("");
+  const [newProdPrice, setNewProdPrice] = useState("");
+  const [newProdStock, setNewProdStock] = useState("10");
+  const [newProdCategory, setNewProdCategory] = useState("topwear");
+  const [newProdGender, setNewProdGender] = useState("men");
+  const [newProdImage, setNewProdImage] = useState("");
+  const [newProdSizes, setNewProdSizes] = useState("S, M, L, XL");
+  const [newProdColors, setNewProdColors] = useState("Black, White, Navy");
+  const [newProdDesc, setNewProdDesc] = useState("");
+  const [addingProduct, setAddingProduct] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      setAuthChecking(false);
+      if (currentUser && currentUser.email === ADMIN_EMAIL) {
+        fetchAllData();
+      }
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  const loadProducts = async () => {
-    const snap = await getDocs(collection(db, "products"));
-    setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AdminProduct)));
-  };
-
-  useEffect(() => {
-    if (user?.email === ADMIN_EMAIL) {
-      loadProducts();
-    }
-  }, [user]);
-
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !price || !image) return alert("Please fill required fields (name, price, image link).");
-
+  const fetchAllData = async () => {
+    setLoadingData(true);
     try {
-      await addDoc(collection(db, "products"), {
-        name,
-        description,
-        price: Number(price),
-        image,
-        gender,
-        category,
-        sizes: sizes.split(",").map((s) => s.trim()),
-        colors: colors.split(",").map((c) => c.trim()),
-        stock: Number(stock),
-        createdAt: new Date(),
-      });
+      // Fetch Orders
+      const orderSnap = await getDocs(collection(db, "orders"));
+      const orderList = orderSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setOrders(orderList);
 
+      // Fetch Products
+      const prodSnap = await getDocs(collection(db, "products"));
+      const prodList = prodSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setProducts(prodList);
+    } catch (err) {
+      console.error("Error loading admin data:", err);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  // Order status update
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+    } catch (err) {
+      alert("Failed to update status: " + err.message);
+    }
+  };
+
+  // WhatsApp Order Notification to Customer
+  const sendWhatsAppUpdate = (order) => {
+    if (!order.phone) {
+      alert("Customer phone number is missing!");
+      return;
+    }
+    const cleanPhone = order.phone.replace(/[^0-9]/g, "");
+    const formattedPhone = cleanPhone.startsWith("91") ? cleanPhone : `91${cleanPhone}`;
+
+    const text = `Hello ${order.customerName || "Valued Customer"}! 👋\n\n` +
+      `Your order from *KNB Clothing* (Order ID: #${order.id.slice(0, 8)}) status has been updated to: *${order.status || "Confirmed"}* 📦\n\n` +
+      `• Total Amount: ₹${order.total}\n` +
+      `• Items: ${order.items?.map((i) => i.name).join(", ") || "Clothing order"}\n\n` +
+      `Thank you for shopping with KNB Clothing! If you have any questions, reply directly to this message.`;
+
+    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
+  // Add Product Handler
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    if (!newProdName || !newProdPrice) {
+      alert("Please enter product name and price");
+      return;
+    }
+
+    setAddingProduct(true);
+    try {
+      const prodData = {
+        name: newProdName.trim(),
+        price: Number(newProdPrice),
+        stock: Number(newProdStock || 0),
+        category: newProdCategory,
+        gender: newProdGender,
+        imageUrl: newProdImage.trim() || "https://placehold.co/400x500?text=KNB+Clothing",
+        sizes: newProdSizes.split(",").map((s) => s.trim()).filter(Boolean),
+        colors: newProdColors.split(",").map((c) => c.trim()).filter(Boolean),
+        description: newProdDesc.trim(),
+        createdAt: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, "products"), prodData);
+      setProducts([{ id: docRef.id, ...prodData }, ...products]);
+
+      // Reset form
+      setNewProdName("");
+      setNewProdPrice("");
+      setNewProdStock("10");
+      setNewProdImage("");
+      setNewProdDesc("");
       alert("Product added successfully!");
-      setName("");
-      setDescription("");
-      setPrice("");
-      setImage("");
-      loadProducts();
-    } catch (err: any) {
+    } catch (err) {
       alert("Error adding product: " + err.message);
+    } finally {
+      setAddingProduct(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this product?")) {
+  // Delete Product Handler
+  const handleDeleteProduct = async (id) => {
+    if (!confirm("Are you sure you want to delete this product?")) return;
+    try {
       await deleteDoc(doc(db, "products", id));
-      loadProducts();
+      setProducts(products.filter((p) => p.id !== id));
+    } catch (err) {
+      alert("Failed to delete product: " + err.message);
     }
   };
 
-  if (loading) return <p style={{ padding: "40px", textAlign: "center" }}>Loading admin panel...</p>;
-
-  if (!user || user.email !== ADMIN_EMAIL) {
+  // Security Gate
+  if (authChecking) {
     return (
-      <main style={{ padding: "40px", textAlign: "center", fontFamily: "sans-serif" }}>
-        <h2>Access Denied</h2>
-        <p>You must be signed in as the administrator ({ADMIN_EMAIL}) to view this page.</p>
-      </main>
+      <div style={{ textAlign: "center", padding: "80px 20px", fontFamily: "sans-serif" }}>
+        Verifying administrator access...
+      </div>
     );
   }
 
-  return (
-    <main style={{ maxWidth: "700px", margin: "30px auto", padding: "0 16px", fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "20px" }}>Admin Dashboard</h1>
-
-      <form onSubmit={handleAddProduct} style={{ display: "flex", flexDirection: "column", gap: "12px", background: "#f8f9fa", padding: "20px", borderRadius: "8px", border: "1px solid #e9ecef" }}>
-        <h3>Add New Product</h3>
-
-        <div>
-          <label style={{ fontSize: "14px", fontWeight: 600 }}>Product Name *</label>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-        </div>
-
-        <div>
-          <label style={{ fontSize: "14px", fontWeight: 600 }}>Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: "12px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Price (₹) *</label>
-            <input
-              type="number"
-              required
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Stock Quantity</label>
-            <input
-              type="number"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: "12px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Gender</label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            >
-              <option value="Men">Men</option>
-              <option value="Women">Women</option>
-              <option value="Unisex">Unisex</option>
-            </select>
-          </div>
-
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            >
-              <option value="Topwear">Topwear (Shirts, Tees, Hoodies)</option>
-              <option value="Bottomwear">Bottomwear (Jeans, Trousers)</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: "14px", fontWeight: 600 }}>Image Direct URL *</label>
-          <input
-            type="url"
-            required
-            placeholder="https://i.ibb.co/... or https://images.unsplash.com/..."
-            value={image}
-            onChange={(e) => setImage(e.target.value)}
-            style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: "12px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Sizes (comma separated)</label>
-            <input
-              type="text"
-              value={sizes}
-              onChange={(e) => setSizes(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: "14px", fontWeight: 600 }}>Colors (comma separated)</label>
-            <input
-              type="text"
-              value={colors}
-              onChange={(e) => setColors(e.target.value)}
-              style={{ width: "100%", padding: "8px", marginTop: "4px", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          style={{ background: "#000", color: "#fff", padding: "10px", borderRadius: "6px", border: "none", cursor: "pointer", marginTop: "8px" }}
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return (
+      <div style={{ maxWidth: "500px", margin: "80px auto", padding: "30px 20px", textAlign: "center", fontFamily: "sans-serif" }}>
+        <h1 style={{ fontSize: "24px", color: "#dc2626", marginBottom: "12px" }}>Access Denied</h1>
+        <p style={{ color: "#666", marginBottom: "20px" }}>
+          You must be signed in as the administrator (<strong>{ADMIN_EMAIL}</strong>) to access this dashboard.
+        </p>
+        <Link
+          href="/login"
+          style={{
+            display: "inline-block",
+            padding: "10px 20px",
+            backgroundColor: "#000",
+            color: "#fff",
+            textDecoration: "none",
+            borderRadius: "6px",
+            fontWeight: 600,
+          }}
         >
-          Add Product
-        </button>
-      </form>
+          Go to Login
+        </Link>
+      </div>
+    );
+  }
 
-      <h3 style={{ marginTop: "30px", marginBottom: "12px" }}>Current Catalog</h3>
-      {products.length === 0 ? (
-        <p style={{ color: "#777" }}>No products in database.</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {products.map((p) => (
-            <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #eee", padding: "10px", borderRadius: "6px" }}>
-              <div>
-                <strong>{p.name}</strong> — ₹{p.price}
-                <div style={{ fontSize: "12px", color: "#666" }}>
-                  {p.gender || "All"} | {p.category || "General"} | {p.stock} in stock
-                </div>
-              </div>
-              <button
-                onClick={() => handleDelete(p.id)}
-                style={{ background: "#dc3545", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
-              >
-                Delete
-              </button>
+  // Analytics Metrics
+  const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+  const pendingOrders = orders.filter((o) => !o.status || o.status === "Processing" || o.status === "Pending");
+  const lowStockProducts = products.filter((p) => p.stock !== undefined && Number(p.stock) < 5);
+
+  return (
+    <div style={{ maxWidth: "1100px", margin: "20px auto", padding: "0 20px 80px", fontFamily: "sans-serif" }}>
+      {/* Top Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+          borderBottom: "2px solid #000",
+          paddingBottom: "16px",
+          marginBottom: "24px",
+        }}
+      >
+        <div>
+          <h1 style={{ margin: "0 0 4px 0", fontSize: "24px", fontWeight: "900" }}>KNB Clothing Admin Hub</h1>
+          <p style={{ margin: 0, fontSize: "13px", color: "#666" }}>Logged in as: {user.email}</p>
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            onClick={fetchAllData}
+            style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontWeight: 600 }}
+          >
+            🔄 Refresh
+          </button>
+          <Link
+            href="/"
+            style={{ padding: "8px 14px", borderRadius: "6px", background: "#000", color: "#fff", textDecoration: "none", fontSize: "14px", fontWeight: 600 }}
+          >
+            Visit Shop ↗
+          </Link>
+        </div>
+      </div>
+
+      {/* Analytics Overview Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "28px" }}>
+        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Revenue</span>
+          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>₹{totalRevenue}</h3>
+        </div>
+        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Orders</span>
+          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>{orders.length}</h3>
+        </div>
+        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
+          <span style={{ fontSize: "13px", color: "#991b1b", fontWeight: 600 }}>Pending Action</span>
+          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold", color: "#b91c1c" }}>{pendingOrders.length}</h3>
+        </div>
+        <div style={{ padding: "16px", borderRadius: "8px", backgroundColor: "#f8f9fa", border: "1px solid #eee" }}>
+          <span style={{ fontSize: "13px", color: "#666", fontWeight: 600 }}>Total Catalog</span>
+          <h3 style={{ margin: "6px 0 0", fontSize: "24px", fontWeight: "bold" }}>{products.length} Items</h3>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid #ddd", marginBottom: "24px" }}>
+        <button
+          onClick={() => setActiveTab("orders")}
+          style={{
+            padding: "10px 20px",
+            border: "none",
+            borderBottom: activeTab === "orders" ? "3px solid #000" : "none",
+            backgroundColor: "transparent",
+            fontWeight: activeTab === "orders" ? "bold" : "normal",
+            cursor: "pointer",
+            fontSize: "15px",
+          }}
+        >
+          📦 Orders ({orders.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("products")}
+          style={{
+            padding: "10px 20px",
+            border: "none",
+            borderBottom: activeTab === "products" ? "3px solid #000" : "none",
+            backgroundColor: "transparent",
+            fontWeight: activeTab === "products" ? "bold" : "normal",
+            cursor: "pointer",
+            fontSize: "15px",
+          }}
+        >
+          👕 Products & Inventory ({products.length})
+        </button>
+      </div>
+
+      {/* TAB 1: ORDERS MANAGEMENT */}
+      {activeTab === "orders" && (
+        <div>
+          <h2 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "16px" }}>Customer Orders</h2>
+
+          {loadingData ? (
+            <p>Loading orders...</p>
+          ) : orders.length === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", backgroundColor: "#fafafa", borderRadius: "8px", border: "1px dashed #ccc" }}>
+              <p style={{ margin: 0, color: "#666" }}>No orders placed yet. Orders made via checkout will appear here.</p>
             </div>
-          ))}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {orders.map((ord) => (
+                <div
+                  key={ord.id}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    padding: "18px",
+                    backgroundColor: "#fff",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
+                    <div>
+                      <span style={{ fontSize: "12px", color: "#888", fontWeight: 600 }}>ORDER #{ord.id.slice(0, 8).toUpperCase()}</span>
+                      <h3 style={{ margin: "2px 0", fontSize: "16px", fontWeight: "bold" }}>{ord.customerName || "Guest"} ({ord.phone || "No phone"})</h3>
+                      <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#555" }}>📍 {ord.address || "Address not provided"}</p>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {/* Status Dropdown */}
+                      <select
+                        value={ord.status || "Processing"}
+                        onChange={(e) => handleStatusChange(ord.id, e.target.value)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: "6px",
+                          border: "1px solid #ccc",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          backgroundColor: ord.status === "Delivered" ? "#dcfce7" : "#fef9c3",
+                        }}
+                      >
+                        <option value="Processing">Processing</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Packed">Packed</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+
+                      {/* WhatsApp Notify Button */}
+                      <button
+                        onClick={() => sendWhatsAppUpdate(ord)}
+                        style={{
+                          padding: "6px 12px",
+                          backgroundColor: "#25D366",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        💬 Notify
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Order items table */}
+                  <div style={{ backgroundColor: "#f9fafb", padding: "10px 14px", borderRadius: "6px", marginBottom: "10px" }}>
+                    <p style={{ margin: "0 0 6px", fontSize: "12px", fontWeight: 600, color: "#666" }}>ITEMS ORDERED:</p>
+                    {ord.items && ord.items.length > 0 ? (
+                      ord.items.map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", margin: "2px 0" }}>
+                          <span>• {item.name} ({item.size || "Free"} / {item.color || "Std"}) × {item.quantity || 1}</span>
+                          <span style={{ fontWeight: 600 }}>₹{item.price * (item.quantity || 1)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p style={{ margin: 0, fontSize: "13px" }}>Order details logged without individual items list.</p>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px" }}>
+                    <span style={{ color: "#666" }}>Payment: <strong>{ord.paymentMethod || "UPI"}</strong></span>
+                    <span style={{ fontSize: "16px", fontWeight: "bold" }}>Total: ₹{ord.total}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
-    </main>
-  );
-      }
+
+      {/* TAB 2: PRODUCTS & INVENTORY */}
+      {activeTab === "products" && (
+        <div>
+          {/* Add Product Section */}
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "20px", backgroundColor: "#fff", marginBottom: "30px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: "700", margin: "0 0 16px" }}>➕ Add New Clothing Item</h2>
+            <form onSubmit={handleAddProduct} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Product Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Classic Oversized Tee"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Selling Price (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  placeholder="e.g. 599"
+                  value={newProdPrice}
+                  onChange={(e) => setNewProdPrice(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Stock Quantity</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 25"
+                  value={newProdStock}
+                  onChange={(e) => setNewProdStock(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Category</label>
+                <select
+                  value={newProdCategory}
+                  onChange={(e) => setNewProdCategory(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", backgroundColor: "#fff" }}
+                >
+                  <option value="topwear">Topwear</option>
+                  <option value="bottomwear">Bottomwear</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Target Gender</label>
+                <select
+                  value={newProdGender}
+                  onChange={(e) => setNewProdGender(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", backgroundColor: "#fff" }}
+                >
+                  <option value="men">Men</option>
+                  <option value="women">Women</option>
+                  <option value="unisex">Unisex</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Image URL</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={newProdImage}
+                  onChange={(e) => setNewProdImage(e.target.value)}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: "6px", boxSizing: "border-box" }}
+                />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>Sizes (comma separated)</label>
+                <input
+                  type="text"
+                  placeholder="S, M, L, XL, XXL"
+        
