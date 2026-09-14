@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useStore } from "@/components/StoreProvider";
@@ -37,7 +36,8 @@ export default function Header() {
         zIndex: 100,
       }}
     >
-      <Link
+      {/* Brand Icon / Title - Direct browser navigation to home */}
+      <a
         href="/"
         style={{
           textDecoration: "none",
@@ -45,20 +45,29 @@ export default function Header() {
           fontSize: "19px",
           fontWeight: "900",
           letterSpacing: "0.5px",
+          cursor: "pointer",
         }}
       >
         KNB CLOTHING
-      </Link>
+      </a>
 
       <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-        <Link
+        {/* Shop / Home Link */}
+        <a
           href="/"
-          style={{ textDecoration: "none", color: "#333", fontSize: "14px", fontWeight: 600 }}
+          style={{
+            textDecoration: "none",
+            color: "#333",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
         >
           Shop
-        </Link>
+        </a>
 
-        <Link
+        {/* Bag */}
+        <a
           href="/checkout"
           style={{
             textDecoration: "none",
@@ -68,13 +77,14 @@ export default function Header() {
             display: "flex",
             alignItems: "center",
             gap: "4px",
+            cursor: "pointer",
           }}
         >
           🛍️ Bag ({cartCount})
-        </Link>
+        </a>
 
-        {/* Profile Tab */}
-        <Link
+        {/* Profile */}
+        <a
           href={user ? "/profile" : "/login"}
           style={{
             textDecoration: "none",
@@ -87,27 +97,29 @@ export default function Header() {
             display: "flex",
             alignItems: "center",
             gap: "4px",
+            cursor: "pointer",
           }}
         >
           👤 {user ? "Profile" : "Login"}
-        </Link>
+        </a>
 
-        {/* Admin Tab - strictly for kanchinagababu6@gmail.com */}
+        {/* Admin Link */}
         {isAdmin && (
-          <Link
+          <a
             href="/admin"
             style={{
               textDecoration: "none",
               fontSize: "12px",
               padding: "6px 10px",
               backgroundColor: "#000",
-              borderRadius: "4px",
               color: "#fff",
+              borderRadius: "4px",
               fontWeight: 600,
+              cursor: "pointer",
             }}
           >
             Admin
-          </Link>
+          </a>
         )}
       </div>
     </header>
