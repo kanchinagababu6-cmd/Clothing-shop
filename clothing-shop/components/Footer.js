@@ -1,39 +1,51 @@
-import Link from 'next/link';
+// @ts-nocheck
+import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer style={{ backgroundColor: '#111827', color: '#d1d5db', padding: '40px 20px 20px', marginTop: '60px' }}>
-      <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '30px' }}>
-        
-        {/* Brand */}
-        <div style={{ flex: '1 1 250px' }}>
-          <h3 style={{ color: '#ffffff', fontSize: '20px', marginBottom: '10px' }}>THREADLY</h3>
-          <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#9ca3af' }}>
-            Everyday clothes, simply. Comfortable, quality fashion essentials.
-          </p>
-        </div>
+    <footer
+      style={{
+        borderTop: "1px solid #eee",
+        padding: "40px 20px",
+        backgroundColor: "#fafafa",
+        textAlign: "center",
+        fontFamily: "sans-serif",
+        marginTop: "60px",
+      }}
+    >
+      <h3 style={{ margin: "0 0 10px 0", fontSize: "18px", fontWeight: "800", letterSpacing: "1px" }}>
+        KNB CLOTHING
+      </h3>
+      <p style={{ margin: "0 0 16px 0", color: "#666", fontSize: "14px" }}>
+        Quality everyday clothing. Simple, affordable, and direct to your door.
+      </p>
 
-        {/* Policies */}
-        <div style={{ flex: '1 1 200px' }}>
-          <h4 style={{ color: '#ffffff', fontSize: '16px', marginBottom: '10px' }}>Customer Care</h4>
-          <p style={{ fontSize: '14px', margin: '6px 0' }}>
-            <Link href="/terms" style={{ color: '#9ca3af', textDecoration: 'none' }}>
-              Terms & Conditions
-            </Link>
-          </p>
-        </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginBottom: "20px" }}>
+        <Link href="/" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
+          Home
+        </Link>
+        <Link href="/checkout" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
+          Checkout
+        </Link>
+        <Link href="/terms" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
+          Terms & Conditions
+        </Link>
+        <a
+          href="https://wa.me/917075596910"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#25D366", textDecoration: "none", fontSize: "13px", fontWeight: "bold" }}
+        >
+          WhatsApp Us
+        </a>
+      </div>
 
-        {/* Contact Info */}
-        <div style={{ flex: '1 1 250px' }}>
-          <h4 style={{ color: '#ffffff', fontSize: '16px', marginBottom: '10px' }}>Contact Details</h4>
-          <p style={{ fontSize: '14px', margin: '6px 0', color: '#9ca3af' }}>
-            <strong style={{ color: '#fff' }}>Phone: </strong> 
-            <a href="tel:+919876543210" style={{ color: '#60a5fa' }}>+91 98765 43210</a>
-          </p>
-          <p style={{ fontSize: '14px', margin: '6px 0', color: '#9ca3af' }}>
-            <strong style={{ color: '#fff' }}>Email: </strong> 
-            <a href="mailto:kanchinagababu6@gmail.com" style={{ color: '#60a5fa' }}>kanchinagababu6@gmail.com</a>
-          </p>
+      <p style={{ margin: 0, color: "#999", fontSize: "12px" }}>
+        © {new Date().getFullYear()} KNB Clothing. All rights reserved.
+      </p>
+    </footer>
+  );
+}
           <p style={{ fontSize: '14px', margin: '6px 0', color: '#9ca3af' }}>
             <strong style={{ color: '#fff' }}>Location: </strong> India
           </p>
