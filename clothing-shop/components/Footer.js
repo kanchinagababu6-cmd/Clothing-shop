@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export default function Footer() {
   return (
     <footer
@@ -12,20 +10,32 @@ export default function Footer() {
         marginTop: "60px",
       }}
     >
-      <h3 style={{ margin: "0 0 10px 0", fontSize: "18px", fontWeight: "800", letterSpacing: "1px" }}>
+      <a
+        href="/"
+        style={{
+          display: "inline-block",
+          textDecoration: "none",
+          color: "#000",
+          fontSize: "18px",
+          fontWeight: "800",
+          letterSpacing: "1px",
+          marginBottom: "10px",
+          cursor: "pointer",
+        }}
+      >
         KNB CLOTHING
-      </h3>
+      </a>
       <p style={{ margin: "0 0 16px 0", color: "#666", fontSize: "14px" }}>
         Quality everyday clothing. Simple, affordable, and direct to your door.
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginBottom: "20px" }}>
-        <Link href="/" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
+        <a href="/" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
           Home
-        </Link>
-        <Link href="/checkout" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
+        </a>
+        <a href="/checkout" style={{ color: "#333", textDecoration: "none", fontSize: "13px" }}>
           Checkout
-        </Link>
+        </a>
         <a
           href="https://wa.me/917075596910"
           target="_blank"
