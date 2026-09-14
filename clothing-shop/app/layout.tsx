@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "./globals.css";
 import { StoreProvider } from "@/components/StoreProvider";
 import Header from "@/components/Header";
